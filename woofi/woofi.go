@@ -87,22 +87,21 @@ func (c *Connector) Start() {
 }
 
 func (c *Connector) backfill(addresses []ethcommon.Address) {
-	logs := make(chan types.Log, 1000)
-	go func() {
-		for vLog := range logs {
-			if msg := c.parse(vLog); msg != nil {
-				c.EventSink <- &kafkautils.Message{
-					MsgType:  kafkautils.MsgTypeBf,
-					ProtoMsg: msg,
-				}
+	log.Info().Msg("backfill started")
+	logs, err := ethereum.HistoricalEventsWithQueryParams(context.Background(), c.Client, addresses, c.FromBlock, c.NumBlocks)
+	if err != nil {
+		log.Error().Err(err).Msg("backfill failed")
+		return
+	}
+	for vLog := range logs {
+		if msg := c.parse(vLog); msg != nil {
+			c.EventSink <- &kafkautils.Message{
+				MsgType:  kafkautils.MsgTypeBf,
+				ProtoMsg: msg,
 			}
 		}
-		log.Info().Msg("backfill stopped")
-	}()
-	log.Info().Msg("backfill started")
-	if err := ethereum.BackfillFrom(context.Background(), c.Client, addresses, logs, c.FromBlock, c.NumBlocks); err != nil {
-		log.Error().Err(err).Msg("backfill failed")
 	}
+	log.Info().Msg("backfill stopped")
 }
 
 func (c *Connector) parse(vLog types.Log) protoreflect.ProtoMessage {
@@ -117,7 +116,7 @@ func (c *Connector) parse(vLog types.Log) protoreflect.ProtoMessage {
 
 	ts, err := c.Sub.GetBlockTime(ctx, vLog)
 	if err != nil {
-		log.Error().Err(err).Msg("failed to retrieve block timestamp")
+		log.Error().Err(err).Str("blockHash", vLog.BlockHash.String()).Msg("failed to retrieve block timestamp")
 	}
 
 	var sender *ethcommon.Address
