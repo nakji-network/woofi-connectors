@@ -1,0 +1,21 @@
+// Code generated - DO NOT EDIT.
+// This file is a generated protobuf definition and any manual changes will be lost.
+
+syntax = "proto3";
+package WooracleV2;
+
+import "google/protobuf/timestamp.proto";
+
+option go_package = "github.com/nakji-network/woofi-connectors/woofi/WooracleV2";
+
+message OwnershipTransferred {
+	google.protobuf.Timestamp ts = 1;
+	uint64 blockNumber = 2;
+	uint64 index = 3;
+	bytes txHash = 4;
+	bytes previousOwner = 5;
+	bytes newOwner = 6;
+	bytes contractAddress = 7;
+	bytes senderAddress = 8;
+	bytes receiverAddress = 9;
+}

@@ -13,8 +13,8 @@ message OwnershipTransferred {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes previousOwner = 5; 
-	bytes newOwner = 6; 
+	bytes previousOwner = 5;
+	bytes newOwner = 6;
 	bytes contractAddress = 7;
 	bytes senderAddress = 8;
 	bytes receiverAddress = 9;
@@ -25,7 +25,7 @@ message RewardManagerUpdated {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes newRewardManager = 5; 
+	bytes newRewardManager = 5;
 	bytes contractAddress = 6;
 	bytes senderAddress = 7;
 	bytes receiverAddress = 8;
@@ -36,8 +36,8 @@ message StrategistUpdated {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes strategist = 5; 
-	bool flag = 6; 
+	bytes strategist = 5;
+	bool flag = 6;
 	bytes contractAddress = 7;
 	bytes senderAddress = 8;
 	bytes receiverAddress = 9;
@@ -48,8 +48,8 @@ message Withdraw {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes token = 5; 
-	bytes to = 6; 
+	bytes token = 5;
+	bytes to = 6;
 	bytes amount = 7; // uint256
 	bytes contractAddress = 8;
 	bytes senderAddress = 9;
@@ -61,8 +61,8 @@ message OwnershipTransferPrepared {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes previousOwner = 5; 
-	bytes newOwner = 6; 
+	bytes previousOwner = 5;
+	bytes newOwner = 6;
 	bytes contractAddress = 7;
 	bytes senderAddress = 8;
 	bytes receiverAddress = 9;
@@ -73,7 +73,7 @@ message ParametersUpdated {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes baseToken = 5; 
+	bytes baseToken = 5;
 	bytes newThreshold = 6; // uint256
 	bytes newLpFeeRate = 7; // uint256
 	bytes newR = 8; // uint256
@@ -87,7 +87,7 @@ message Paused {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes account = 5; 
+	bytes account = 5;
 	bytes contractAddress = 6;
 	bytes senderAddress = 7;
 	bytes receiverAddress = 8;
@@ -98,7 +98,7 @@ message WooGuardianUpdated {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes newWooGuardian = 5; 
+	bytes newWooGuardian = 5;
 	bytes contractAddress = 6;
 	bytes senderAddress = 7;
 	bytes receiverAddress = 8;
@@ -109,7 +109,7 @@ message WooracleUpdated {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes newWooracle = 5; 
+	bytes newWooracle = 5;
 	bytes contractAddress = 6;
 	bytes senderAddress = 7;
 	bytes receiverAddress = 8;
@@ -120,7 +120,7 @@ message Unpaused {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes account = 5; 
+	bytes account = 5;
 	bytes contractAddress = 6;
 	bytes senderAddress = 7;
 	bytes receiverAddress = 8;
@@ -131,12 +131,12 @@ message WooSwap {
 	uint64 blockNumber = 2;
 	uint64 index = 3;
 	bytes txHash = 4;
-	bytes fromToken = 5; 
-	bytes toToken = 6; 
+	bytes fromToken = 5;
+	bytes toToken = 6;
 	bytes fromAmount = 7; // uint256
 	bytes toAmount = 8; // uint256
-	bytes from = 9; 
-	bytes to = 10; 
+	bytes from = 9;
+	bytes to = 10;
 	bytes contractAddress = 11;
 	bytes senderAddress = 12;
 	bytes receiverAddress = 13;

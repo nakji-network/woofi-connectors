@@ -1,24 +1,10 @@
 # WooFi
 
-This connector ingests the woofi contracts specified below. Related connectors are in ../woofi_avax, ../woofi_bsc, ../woofi_fantom, ../woofi_polygon.
+This connector ingests the woofi contracts specified below. Related connectors are in ../woofi_avax, ../woofi_arbi, ../woofi_bsc, ../woofi_fantom, ../woofi_polygon.
 
 ABIs are based on the ones [provided by the Woofi Team](https://github.com/woonetwork/woofi_subgraph/tree/main/abis), with their names changed slightly to make it backwards compatible with the currently deployed connector + its users.
 
 ## Address <> ABI mappings | start
-
--- BSC --
-
-0xbf365Ce9cFcb2d5855521985E351bA3bcf77FD3F | 13662625 | ABI: WooPPV3
-
-0xcEf5BE73ae943B77f9Bc08859367D923C030a269 | 17015221 | ABI: WooRouterV2
-
-0x114f84658c99aa6EA62e3160a87A16dEaF7EFe83 | 11983352 | ABI: WooRouterV1
-
-0x53E255e8Bbf4EDF16797f9885291B3Ca0C70B59f | 18675185 | ABI: WooCrossChainRouterV1
-
-0x8489d142Da126F4Ea01750e80ccAa12FD1642988 | 12094867 | ABI: WooPPV2
-
-0x10C24658815585851a8888f059Cb4338790023F1 | 11981813 | ABI: WooPPV2
 
 -- Avalanche --
 
@@ -34,13 +20,29 @@ ABIs are based on the ones [provided by the Woofi Team](https://github.com/woone
 
 0xF8cE0D043891b62c55380fB1EFBfB4F186153D96 | 9713408 | ABI: WooPPV3
 
--- Polygon --
+-- Arbitrum --
 
-0x7400B665C8f4f3a951a99f1ee9872efb8778723d | 29860023 | ABI: WooPPV3
+0xeFF23B4bE1091b53205E35f3AfCD9C7182bf3062 | 36279764 | ABI: WooPPV4
 
-0x9D1A92e601db0901e69bd810029F2C14bCCA3128 | 29860251 | ABI: WooRouterV2
+0x37a9dE70b6734dFCA54395D8061d9411D9910739 | 34401135 | ABI: WooracleV2
 
-0x376d567C5794cfc64C74852A9DB2105E0b5B482C | 29897168 | ABI: WooCrossChainRouterV1
+0x9aEd3A8896A85FE9a8CAc52C9B402D092B629a30 | 35134665 | ABI: WooRouterV3
+
+0x0972A0fa37984E7FF2aEFA53A0Bb10dCE535aa73 | 40475960 | ABI: WooCrossChainRouterV1
+
+-- BSC --
+
+0xbf365Ce9cFcb2d5855521985E351bA3bcf77FD3F | 13662625 | ABI: WooPPV3
+
+0xcEf5BE73ae943B77f9Bc08859367D923C030a269 | 17015221 | ABI: WooRouterV2
+
+0x114f84658c99aa6EA62e3160a87A16dEaF7EFe83 | 11983352 | ABI: WooRouterV1
+
+0x53E255e8Bbf4EDF16797f9885291B3Ca0C70B59f | 18675185 | ABI: WooCrossChainRouterV1
+
+0x8489d142Da126F4Ea01750e80ccAa12FD1642988 | 12094867 | ABI: WooPPV2
+
+0x10C24658815585851a8888f059Cb4338790023F1 | 11981813 | ABI: WooPPV2
 
 -- Fantom --
 
@@ -50,6 +52,14 @@ ABIs are based on the ones [provided by the Woofi Team](https://github.com/woone
 
 0xcF6Ce5Fd6bf28bB1AeAc88A55251f6c840059De5 | 40483282 | ABI: WooCrossChainRouterV1
 
+-- Polygon --
+
+0x7400B665C8f4f3a951a99f1ee9872efb8778723d | 29860023 | ABI: WooPPV3
+
+0x9D1A92e601db0901e69bd810029F2C14bCCA3128 | 29860251 | ABI: WooRouterV2
+
+0x376d567C5794cfc64C74852A9DB2105E0b5B482C | 29897168 | ABI: WooCrossChainRouterV1
+
 ## Naming scheme
 
 The ABI names are based on backwards compatibility and contract names.
@@ -58,8 +68,12 @@ subgraph/WooPPV1_1.json               => WooPPV2.abi
 
 subgraph/WooPPV1_2.json               => WooPPV3.abi
 
+subgraph/WooPPV2_1.json               => WooPPV4.abi
+
 subgraph/WooRouterV1_1.json           => WooRouterV1.abi
 
 subgraph/WooRouterV1_2.json           => WooRouterV2.abi
+
+subgraph/WooRouterV2_1.json           => WooRouterV3.abi
 
 subgraph/WooCrossChainRouterV1_1.json => WooCrossChainRouterV1.abi
