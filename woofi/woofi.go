@@ -2,6 +2,7 @@ package woofi
 
 import (
 	"context"
+	"math/rand"
 	"time"
 
 	"github.com/nakji-network/connector/chain/ethereum"
@@ -111,10 +112,10 @@ func (c *Connector) parse(vLog types.Log) protoreflect.ProtoMessage {
 		return nil
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
 
-	ts, err := c.Sub.GetBlockTime(ctx, vLog)
+	ts, err := c.getBlockTime(ctx, vLog)
 	if err != nil {
 		log.Error().Err(err).Str("blockHash", vLog.BlockHash.String()).Msg("failed to retrieve block timestamp")
 	}
@@ -122,12 +123,12 @@ func (c *Connector) parse(vLog types.Log) protoreflect.ProtoMessage {
 	var sender *ethcommon.Address
 	var receiver *ethcommon.Address
 
-	tx, err := c.Sub.TransactionByHash(ctx, vLog.TxHash)
+	tx, err := c.transactionByHash(ctx, vLog.TxHash)
 	if err != nil {
 		log.Error().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction by hash")
 	} else {
 		receiver = tx.To()
-		adrr, err := c.Sub.TransactionSender(ctx, tx, vLog.BlockHash, vLog.TxIndex)
+		adrr, err := c.transactionSender(ctx, tx, vLog.BlockHash, vLog.TxIndex)
 		if err != nil {
 			log.Error().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction sender")
 		} else {
@@ -141,4 +142,72 @@ func (c *Connector) parse(vLog types.Log) protoreflect.ProtoMessage {
 		SenderAddress:   sender,
 		ReceiverAddress: receiver,
 	})
+}
+
+func (c *Connector) getBlockTime(ctx context.Context, vLog types.Log) (uint64, error) {
+	for retry := 0; ; retry++ {
+		ts, err := c.Sub.GetBlockTime(ctx, vLog)
+		if err == nil {
+			return ts, nil
+		}
+		if !isRetryableError(err) {
+			return 0, err
+		}
+		// Do exponential backoff with 10% jitter
+		backoff := float64(int(1) << retry)
+		backoff += backoff * (0.1 * rand.Float64())
+		select {
+		case <-ctx.Done():
+			return 0, ctx.Err()
+		case <-time.After(time.Second * time.Duration(backoff)):
+			continue
+		}
+	}
+}
+
+func (c *Connector) transactionByHash(ctx context.Context, hash ethcommon.Hash) (*types.Transaction, error) {
+	for retry := 0; ; retry++ {
+		tx, err := c.Sub.TransactionByHash(ctx, hash)
+		if err == nil {
+			return tx, nil
+		}
+		if !isRetryableError(err) {
+			return nil, err
+		}
+		// Do exponential backoff with 10% jitter
+		backoff := float64(int(1) << retry)
+		backoff += backoff * (0.1 * rand.Float64())
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-time.After(time.Second * time.Duration(backoff)):
+			continue
+		}
+	}
+}
+
+func (c *Connector) transactionSender(ctx context.Context, tx *types.Transaction, block ethcommon.Hash, index uint) (ethcommon.Address, error) {
+	for retry := 0; ; retry++ {
+		sender, err := c.Sub.TransactionSender(ctx, tx, block, index)
+		if err == nil {
+			return sender, nil
+		}
+		if !isRetryableError(err) {
+			return ethcommon.Address{}, err
+		}
+		// Do exponential backoff with 10% jitter
+		backoff := float64(int(1) << retry)
+		backoff += backoff * (0.1 * rand.Float64())
+		select {
+		case <-ctx.Done():
+			return ethcommon.Address{}, ctx.Err()
+		case <-time.After(time.Second * time.Duration(backoff)):
+			continue
+		}
+	}
+}
+
+func isRetryableError(err error) bool {
+	s := err.Error()
+	return s == "not found" || s == "websocket: close 1006 (abnormal closure): unexpected EOF"
 }
