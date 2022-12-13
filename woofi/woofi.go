@@ -3,6 +3,7 @@ package woofi
 import (
 	"context"
 	"math/rand"
+	"sync/atomic"
 	"time"
 
 	"github.com/nakji-network/connector/chain/ethereum"
@@ -25,12 +26,17 @@ type Connector struct {
 	*Config
 	*ethereum.Connector
 	contracts map[string]ISmartContract
+	bfDone    int32
+	bfChan    chan types.Log
+	fctChan   chan types.Log
 }
 
 func New(config *Config) *Connector {
 	return &Connector{
 		Config:    config,
 		contracts: make(map[string]ISmartContract),
+		bfChan:    make(chan types.Log, 1024),
+		fctChan:   make(chan types.Log, 1024),
 	}
 }
 
@@ -62,7 +68,10 @@ func (c *Connector) Start() {
 	if c.FromBlock > 0 || c.NumBlocks > 0 {
 		c.RegisterProtos(kafkautils.MsgTypeBf, events...)
 		go c.backfill(addresses)
+		go c.handleBfChannel()
 	}
+
+	go c.handleFctChannel()
 
 	for {
 		select {
@@ -77,12 +86,37 @@ func (c *Connector) Start() {
 
 		//	Listen to event logs
 		case vLog := <-c.Sub.Logs():
-			if msg := c.parse(vLog.Log); msg != nil {
-				c.EventSink <- &kafkautils.Message{
-					MsgType:  kafkautils.MsgTypeFct,
-					ProtoMsg: msg,
-				}
+			c.fctChan <- vLog.Log
+		}
+	}
+}
+
+func (c *Connector) handleBfChannel() {
+	msgs := c.processLogs(c.bfChan)
+loop:
+	for {
+		select {
+		case msg := <-msgs:
+			c.EventSink <- &kafkautils.Message{
+				MsgType:  kafkautils.MsgTypeBf,
+				ProtoMsg: msg,
 			}
+		default:
+			// Exit when backfill is done and there is no message left to process
+			if atomic.LoadInt32(&c.bfDone) == 1 {
+				log.Info().Msg("backfill stopped")
+				break loop
+			}
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+}
+
+func (c *Connector) handleFctChannel() {
+	for msg := range c.processLogs(c.fctChan) {
+		c.EventSink <- &kafkautils.Message{
+			MsgType:  kafkautils.MsgTypeFct,
+			ProtoMsg: msg,
 		}
 	}
 }
@@ -95,53 +129,58 @@ func (c *Connector) backfill(addresses []ethcommon.Address) {
 		return
 	}
 	for vLog := range logs {
-		if msg := c.parse(vLog); msg != nil {
-			c.EventSink <- &kafkautils.Message{
-				MsgType:  kafkautils.MsgTypeBf,
-				ProtoMsg: msg,
-			}
-		}
+		c.bfChan <- vLog
 	}
-	log.Info().Msg("backfill stopped")
+	atomic.StoreInt32(&c.bfDone, 1)
 }
 
-func (c *Connector) parse(vLog types.Log) protoreflect.ProtoMessage {
-	contract := c.GetContract(vLog.Address.String())
-	if contract == nil {
-		log.Info().Str("address", vLog.Address.String()).Msg("event from unsupported address")
-		return nil
-	}
+func (c *Connector) processLogs(logs chan types.Log) <-chan protoreflect.ProtoMessage {
+	out := make(chan protoreflect.ProtoMessage)
+	go func() {
+		for vLog := range logs {
+			contract := c.GetContract(vLog.Address.String())
+			if contract == nil {
+				log.Error().Str("address", vLog.Address.String()).Msg("event from unsupported address")
+				continue
+			}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
-	defer cancel()
+			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
 
-	ts, err := c.getBlockTime(ctx, vLog)
-	if err != nil {
-		log.Error().Err(err).Str("blockHash", vLog.BlockHash.String()).Msg("failed to retrieve block timestamp")
-	}
+			ts, err := c.getBlockTime(ctx, vLog)
+			if err != nil {
+				log.Warn().Err(err).Str("blockHash", vLog.BlockHash.String()).Msg("failed to retrieve block timestamp, retry later...")
+				logs <- vLog
+				cancel()
+				continue
+			}
 
-	var sender *ethcommon.Address
-	var receiver *ethcommon.Address
+			tx, err := c.transactionByHash(ctx, vLog.TxHash)
+			if err != nil {
+				log.Warn().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction by hash, retry later...")
+				logs <- vLog
+				cancel()
+				continue
+			}
 
-	tx, err := c.transactionByHash(ctx, vLog.TxHash)
-	if err != nil {
-		log.Error().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction by hash")
-	} else {
-		receiver = tx.To()
-		adrr, err := c.transactionSender(ctx, tx, vLog.BlockHash, vLog.TxIndex)
-		if err != nil {
-			log.Error().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction sender")
-		} else {
-			sender = &adrr
+			sender, err := c.transactionSender(ctx, tx, vLog.BlockHash, vLog.TxIndex)
+			if err != nil {
+				log.Warn().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction sender, retry later...")
+				logs <- vLog
+				cancel()
+				continue
+			}
+
+			cancel()
+
+			out <- contract.Message(Log{
+				Log:             vLog,
+				BlockTime:       time.Unix(int64(ts), 0),
+				SenderAddress:   &sender,
+				ReceiverAddress: tx.To(),
+			})
 		}
-	}
-
-	return contract.Message(Log{
-		Log:             vLog,
-		BlockTime:       time.Unix(int64(ts), 0),
-		SenderAddress:   sender,
-		ReceiverAddress: receiver,
-	})
+	}()
+	return out
 }
 
 func (c *Connector) getBlockTime(ctx context.Context, vLog types.Log) (uint64, error) {
