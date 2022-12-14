@@ -92,28 +92,17 @@ func (c *Connector) Start() {
 }
 
 func (c *Connector) handleBfChannel() {
-	msgs := c.processLogs(c.bfChan)
-loop:
-	for {
-		select {
-		case msg := <-msgs:
-			c.EventSink <- &kafkautils.Message{
-				MsgType:  kafkautils.MsgTypeBf,
-				ProtoMsg: msg,
-			}
-		default:
-			// Exit when backfill is done and there is no message left to process
-			if atomic.LoadInt32(&c.bfDone) == 1 {
-				log.Info().Msg("backfill stopped")
-				break loop
-			}
-			time.Sleep(100 * time.Millisecond)
+	for msg := range c.processBfLogs() {
+		c.EventSink <- &kafkautils.Message{
+			MsgType:  kafkautils.MsgTypeBf,
+			ProtoMsg: msg,
 		}
 	}
+	log.Info().Msg("backfill stopped")
 }
 
 func (c *Connector) handleFctChannel() {
-	for msg := range c.processLogs(c.fctChan) {
+	for msg := range c.processFctLogs() {
 		c.EventSink <- &kafkautils.Message{
 			MsgType:  kafkautils.MsgTypeFct,
 			ProtoMsg: msg,
@@ -122,6 +111,7 @@ func (c *Connector) handleFctChannel() {
 }
 
 func (c *Connector) backfill(addresses []ethcommon.Address) {
+	defer atomic.StoreInt32(&c.bfDone, 1)
 	log.Info().Msg("backfill started")
 	logs, err := ethereum.HistoricalEventsWithQueryParams(context.Background(), c.Client, addresses, c.FromBlock, c.NumBlocks)
 	if err != nil {
@@ -131,53 +121,84 @@ func (c *Connector) backfill(addresses []ethcommon.Address) {
 	for vLog := range logs {
 		c.bfChan <- vLog
 	}
-	atomic.StoreInt32(&c.bfDone, 1)
 }
 
-func (c *Connector) processLogs(logs chan types.Log) <-chan protoreflect.ProtoMessage {
+func (c *Connector) parse(contract ISmartContract, vLog types.Log) (protoreflect.ProtoMessage, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
+	defer cancel()
+
+	ts, err := c.getBlockTime(ctx, vLog)
+	if err != nil {
+		log.Warn().Err(err).Str("blockHash", vLog.BlockHash.String()).Msg("failed to retrieve block timestamp, retry later...")
+		return nil, err
+	}
+
+	tx, err := c.transactionByHash(ctx, vLog.TxHash)
+	if err != nil {
+		log.Warn().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction by hash, retry later...")
+		return nil, err
+	}
+
+	sender, err := c.transactionSender(ctx, tx, vLog.BlockHash, vLog.TxIndex)
+	if err != nil {
+		log.Warn().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction sender, retry later...")
+		return nil, err
+	}
+
+	msg := contract.Message(Log{
+		Log:             vLog,
+		BlockTime:       time.Unix(int64(ts), 0),
+		SenderAddress:   &sender,
+		ReceiverAddress: tx.To(),
+	})
+
+	return msg, nil
+}
+
+func (c *Connector) processBfLogs() <-chan protoreflect.ProtoMessage {
 	out := make(chan protoreflect.ProtoMessage)
 	go func() {
-		for vLog := range logs {
+		for {
+			select {
+			case vLog := <-c.bfChan:
+				contract := c.GetContract(vLog.Address.String())
+				if contract == nil {
+					log.Error().Str("address", vLog.Address.String()).Msg("event from unsupported address")
+					continue
+				}
+				msg, err := c.parse(contract, vLog)
+				if err != nil {
+					c.bfChan <- vLog // Put the log back to the end of the queue to retry later
+					continue
+				}
+				out <- msg
+			case <-time.After(100 * time.Millisecond):
+				// Exit when backfill is done and there is no message left to process
+				if atomic.LoadInt32(&c.bfDone) == 1 {
+					close(out)
+					return
+				}
+			}
+		}
+	}()
+	return out
+}
+
+func (c *Connector) processFctLogs() <-chan protoreflect.ProtoMessage {
+	out := make(chan protoreflect.ProtoMessage)
+	go func() {
+		for vLog := range c.fctChan {
 			contract := c.GetContract(vLog.Address.String())
 			if contract == nil {
 				log.Error().Str("address", vLog.Address.String()).Msg("event from unsupported address")
 				continue
 			}
-
-			ctx, cancel := context.WithTimeout(context.Background(), 5*time.Minute)
-
-			ts, err := c.getBlockTime(ctx, vLog)
+			msg, err := c.parse(contract, vLog)
 			if err != nil {
-				log.Warn().Err(err).Str("blockHash", vLog.BlockHash.String()).Msg("failed to retrieve block timestamp, retry later...")
-				logs <- vLog
-				cancel()
+				c.fctChan <- vLog // Put the log back to the end of the queue to retry later
 				continue
 			}
-
-			tx, err := c.transactionByHash(ctx, vLog.TxHash)
-			if err != nil {
-				log.Warn().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction by hash, retry later...")
-				logs <- vLog
-				cancel()
-				continue
-			}
-
-			sender, err := c.transactionSender(ctx, tx, vLog.BlockHash, vLog.TxIndex)
-			if err != nil {
-				log.Warn().Err(err).Str("txHash", vLog.TxHash.String()).Msg("failed to retrieve transaction sender, retry later...")
-				logs <- vLog
-				cancel()
-				continue
-			}
-
-			cancel()
-
-			out <- contract.Message(Log{
-				Log:             vLog,
-				BlockTime:       time.Unix(int64(ts), 0),
-				SenderAddress:   &sender,
-				ReceiverAddress: tx.To(),
-			})
+			out <- msg
 		}
 	}()
 	return out
