@@ -23,6 +23,7 @@ jobs:
       with:
         go-version: ${{ matrix.go }}
     #- run: ./gomod.sh
+    - run: cd ./woofi
     - run: go mod tidy
     - run: go mod verify
     #- run: ./gofmt.sh
