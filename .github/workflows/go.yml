@@ -14,6 +14,7 @@ jobs:
         os: [ubuntu-latest]
         go: [1.18]
     runs-on: ${{ matrix.os }}
+    
     steps:
     - uses: actions/checkout@v3
       with:
@@ -23,13 +24,16 @@ jobs:
       with:
         go-version: ${{ matrix.go }}
     #- run: ./gomod.sh
-    - run: cd ./woofi
+    
     - run: go mod tidy
+      working-directory: woofi
     - run: go mod verify
+      working-directory: woofi
     #- run: ./gofmt.sh
     #- run: ./gogenerate.sh
     #- run: ./govet.sh
-    - run: go vet -all -composites=false -unreachable=false -tests=false ./woofi
+    - run: go vet -all -composites=false -unreachable=false -tests=false 
+      working-directory: woofi
     #- run: ./staticcheck.sh
 
   build:
@@ -46,7 +50,9 @@ jobs:
     - uses: ./.github/actions/setup-go
       with:
         go-version: ${{ matrix.go }}
-    - run: go build ./woofi
+    - run: go build
+      working-directory: woofi
+
 
   test:
     strategy:
@@ -66,4 +72,5 @@ jobs:
     - uses: ./.github/actions/setup-go
       with:
         go-version: ${{ matrix.go }}
-    - run: go test -race -cover ./woofi
+    - run: go test -race -cover
+      working-directory: woofi
