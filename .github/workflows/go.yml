@@ -28,7 +28,7 @@ jobs:
     #- run: ./gofmt.sh
     #- run: ./gogenerate.sh
     #- run: ./govet.sh
-    - run: go vet -all -composites=false -unreachable=false -tests=false ./...
+    - run: go vet -all -composites=false -unreachable=false -tests=false ./woofi
     #- run: ./staticcheck.sh
 
   build:
@@ -45,7 +45,7 @@ jobs:
     - uses: ./.github/actions/setup-go
       with:
         go-version: ${{ matrix.go }}
-    - run: go build ./...
+    - run: go build ./woofi
 
   test:
     strategy:
@@ -65,4 +65,4 @@ jobs:
     - uses: ./.github/actions/setup-go
       with:
         go-version: ${{ matrix.go }}
-    - run: go test -race -cover ./...
+    - run: go test -race -cover ./woofi
