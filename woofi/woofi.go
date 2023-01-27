@@ -58,8 +58,6 @@ func (c *Connector) GetContract(addr string) ISmartContract {
 func (c *Connector) Start() {
 	c.initOnce.Do(c.init)
 
-	c.Connector = ethereum.NewConnector(context.Background(), c.addresses, c.NetworkName)
-
 	c.RegisterProtos(kafkautils.MsgTypeFct, c.events...)
 
 	c.Sub.Subscribe(context.Background())
@@ -104,6 +102,7 @@ func (c *Connector) init() {
 		c.events = append(c.events, contract.Events()...)
 		c.addresses = append(c.addresses, ethcommon.HexToAddress(contract.Address()))
 	}
+	c.Connector = ethereum.NewConnector(context.Background(), c.addresses, c.NetworkName)
 }
 
 func (c *Connector) handleBfChannel() {
