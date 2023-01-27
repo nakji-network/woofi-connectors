@@ -3,6 +3,7 @@ package woofi
 import (
 	"context"
 	"math/rand"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -31,6 +32,9 @@ type Connector struct {
 	bfDone    int32
 	bfChan    chan types.Log
 	fctChan   chan types.Log
+	events    []proto.Message
+	addresses []ethcommon.Address
+	initOnce  sync.Once
 }
 
 func New(config *Config) *Connector {
@@ -50,26 +54,19 @@ func (c *Connector) GetContract(addr string) ISmartContract {
 	return c.contracts[addr]
 }
 
+// Start starts subscribing and doing backfill at the same time
 func (c *Connector) Start() {
-	var (
-		events    []proto.Message
-		addresses []ethcommon.Address
-	)
+	c.initOnce.Do(c.init)
 
-	for _, contract := range c.contracts {
-		events = append(events, contract.Events()...)
-		addresses = append(addresses, ethcommon.HexToAddress(contract.Address()))
-	}
+	c.Connector = ethereum.NewConnector(context.Background(), c.addresses, c.NetworkName)
 
-	c.Connector = ethereum.NewConnector(context.Background(), addresses, c.NetworkName)
-
-	c.RegisterProtos(kafkautils.MsgTypeFct, events...)
+	c.RegisterProtos(kafkautils.MsgTypeFct, c.events...)
 
 	c.Sub.Subscribe(context.Background())
 
 	if c.FromBlock > 0 || c.NumBlocks > 0 {
-		c.RegisterProtos(kafkautils.MsgTypeBf, events...)
-		go c.backfill(addresses)
+		c.RegisterProtos(kafkautils.MsgTypeBf, c.events...)
+		go c.backfill(c.addresses)
 		go c.handleBfChannel()
 	}
 
@@ -90,6 +87,22 @@ func (c *Connector) Start() {
 		case vLog := <-c.Sub.Logs():
 			c.fctChan <- vLog.Log
 		}
+	}
+}
+
+// Backfill does backfill only
+func (c *Connector) Backfill() {
+	c.initOnce.Do(c.init)
+
+	c.RegisterProtos(kafkautils.MsgTypeBf, c.events...)
+	go c.backfill(c.addresses)
+	c.handleBfChannel()
+}
+
+func (c *Connector) init() {
+	for _, contract := range c.contracts {
+		c.events = append(c.events, contract.Events()...)
+		c.addresses = append(c.addresses, ethcommon.HexToAddress(contract.Address()))
 	}
 }
 
