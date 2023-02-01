@@ -3,10 +3,10 @@ package woofi
 import (
 	"context"
 	"math/rand"
-	"sync"
 	"sync/atomic"
 	"time"
 
+	"github.com/nakji-network/connector"
 	"github.com/nakji-network/connector/chain/ethereum"
 	"github.com/nakji-network/connector/kafkautils"
 
@@ -32,9 +32,6 @@ type Connector struct {
 	bfDone    int32
 	bfChan    chan types.Log
 	fctChan   chan types.Log
-	events    []proto.Message
-	addresses []ethcommon.Address
-	initOnce  sync.Once
 }
 
 func New(config *Config) *Connector {
@@ -56,15 +53,25 @@ func (c *Connector) GetContract(addr string) ISmartContract {
 
 // Start starts subscribing and doing backfill at the same time
 func (c *Connector) Start() {
-	c.initOnce.Do(c.init)
+	var (
+		events    []proto.Message
+		addresses []ethcommon.Address
+	)
 
-	c.RegisterProtos(kafkautils.MsgTypeFct, c.events...)
+	for _, contract := range c.contracts {
+		events = append(events, contract.Events()...)
+		addresses = append(addresses, ethcommon.HexToAddress(contract.Address()))
+	}
+
+	c.Connector = ethereum.NewConnector(context.Background(), addresses, c.NetworkName)
+
+	c.RegisterProtos(kafkautils.MsgTypeFct, events...)
 
 	c.Sub.Subscribe(context.Background())
 
 	if c.FromBlock > 0 || c.NumBlocks > 0 {
-		c.RegisterProtos(kafkautils.MsgTypeBf, c.events...)
-		go c.backfill(c.addresses)
+		c.RegisterProtos(kafkautils.MsgTypeBf, events...)
+		go c.backfill(addresses)
 		go c.handleBfChannel()
 	}
 
@@ -90,19 +97,21 @@ func (c *Connector) Start() {
 
 // Backfill does backfill only
 func (c *Connector) Backfill() {
-	c.initOnce.Do(c.init)
+	var (
+		events    []proto.Message
+		addresses []ethcommon.Address
+	)
 
-	c.RegisterProtos(kafkautils.MsgTypeBf, c.events...)
-	go c.backfill(c.addresses)
-	c.handleBfChannel()
-}
-
-func (c *Connector) init() {
 	for _, contract := range c.contracts {
-		c.events = append(c.events, contract.Events()...)
-		c.addresses = append(c.addresses, ethcommon.HexToAddress(contract.Address()))
+		events = append(events, contract.Events()...)
+		addresses = append(addresses, ethcommon.HexToAddress(contract.Address()))
 	}
-	c.Connector = ethereum.NewConnector(context.Background(), c.addresses, c.NetworkName)
+
+	c.Connector = ethereum.NewConnector(context.Background(), addresses, c.NetworkName, connector.BackfillOption())
+
+	c.RegisterProtos(kafkautils.MsgTypeBf, events...)
+	go c.backfill(addresses)
+	c.handleBfChannel()
 }
 
 func (c *Connector) handleBfChannel() {
