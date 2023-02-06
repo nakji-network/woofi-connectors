@@ -17,7 +17,10 @@ import (
 	"google.golang.org/protobuf/reflect/protoreflect"
 )
 
-const TimeoutDuration = 5 * time.Minute
+const (
+	QueueSize       = 1024
+	TimeoutDuration = 5 * time.Minute
+)
 
 type Config struct {
 	NetworkName string
@@ -38,8 +41,8 @@ func New(config *Config) *Connector {
 	return &Connector{
 		Config:    config,
 		contracts: make(map[string]ISmartContract),
-		bfChan:    make(chan types.Log, 1024),
-		fctChan:   make(chan types.Log, 1024),
+		bfChan:    make(chan types.Log, QueueSize),
+		fctChan:   make(chan types.Log, QueueSize),
 	}
 }
 
@@ -191,7 +194,14 @@ func (c *Connector) processBfLogs() <-chan protoreflect.ProtoMessage {
 				}
 				msg, err := c.parse(contract, vLog)
 				if err != nil {
-					c.bfChan <- vLog // Put the log back to the end of the queue to retry later
+					if len(c.bfChan) < QueueSize {
+						c.bfChan <- vLog // Put the log back to the end of the queue to retry later
+					} else {
+						// If the queue is full, use another goroutine so that it will not block current goroutine
+						go func(l types.Log) {
+							c.fctChan <- l
+						}(vLog)
+					}
 					continue
 				}
 				out <- msg
@@ -218,7 +228,14 @@ func (c *Connector) processFctLogs() <-chan protoreflect.ProtoMessage {
 			}
 			msg, err := c.parse(contract, vLog)
 			if err != nil {
-				c.fctChan <- vLog // Put the log back to the end of the queue to retry later
+				if len(c.fctChan) < QueueSize {
+					c.fctChan <- vLog // Put the log back to the end of the queue to retry later
+				} else {
+					// If the queue is full, use another goroutine so that it will not block current goroutine
+					go func(l types.Log) {
+						c.fctChan <- l
+					}(vLog)
+				}
 				continue
 			}
 			out <- msg
