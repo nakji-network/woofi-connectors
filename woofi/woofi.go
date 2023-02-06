@@ -194,9 +194,10 @@ func (c *Connector) processBfLogs() <-chan protoreflect.ProtoMessage {
 				}
 				msg, err := c.parse(contract, vLog)
 				if err != nil {
-					if len(c.bfChan) < QueueSize {
-						c.bfChan <- vLog // Put the log back to the end of the queue to retry later
-					} else {
+					select {
+					// Put the log back to the end of the queue to retry later
+					case c.bfChan <- vLog:
+					default:
 						// If the queue is full, use another goroutine so that it will not block current goroutine
 						go func(l types.Log) {
 							c.fctChan <- l
@@ -228,9 +229,10 @@ func (c *Connector) processFctLogs() <-chan protoreflect.ProtoMessage {
 			}
 			msg, err := c.parse(contract, vLog)
 			if err != nil {
-				if len(c.fctChan) < QueueSize {
-					c.fctChan <- vLog // Put the log back to the end of the queue to retry later
-				} else {
+				select {
+				// Put the log back to the end of the queue to retry later
+				case c.fctChan <- vLog:
+				default:
 					// If the queue is full, use another goroutine so that it will not block current goroutine
 					go func(l types.Log) {
 						c.fctChan <- l
