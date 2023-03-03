@@ -1,8 +1,18 @@
-# woofi-connectors
+<div align="center">
+<a href="https://nakji.network"><img alt="Nakji" src="https://github.com/nakji-network/landing/raw/master/src/images/logo.svg" width="300" /></a>
+<br/>
+<strong></strong>
+<h1>Woofi Connectors</h1>
+</div>
+<p align="center">
+<a href="https://github.com/nakji-network/connector/actions/workflows/go.yml"><img alt="Github Workflow" src="https://github.com/nakji-network/connector/actions/workflows/go.yml/badge.svg" /></a>
+<a href="https://godoc.org/github.com/nakji-network/connector"><img alt="GoDoc" src="https://godoc.org/github.com/nakji-network/connector?status.svg" /></a>
+<a href="https://goreportcard.com/report/github.com/nakji-network/connector"><img alt="Go Report Card" src="https://goreportcard.com/badge/github.com/nakji-network/connector" /></a>
+</p>
 
 Connectors on different chains for WooFi protocol.
 
-# woofi
+## woofi
 
 This connector ingests the woofi contracts specified below. Related connectors are in woofi-avax, woofi-arbi, woofi-bsc, woofi-fantom, woofi-polygon.
 
@@ -83,3 +93,7 @@ subgraph/WooRouterV1_2.json           => WooRouterV2.abi
 subgraph/WooRouterV2_1.json           => WooRouterV3.abi
 subgraph/WooCrossChainRouterV1_1.json => WooCrossChainRouterV1.abi
 </pre>
+
+## License
+
+This project is licensed under the [MIT License](https://opensource.org/licenses/MIT) - see the [LICENSE.md](LICENSE.md) file for details.
